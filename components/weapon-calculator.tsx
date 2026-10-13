@@ -1,6 +1,6 @@
 "use client"
 
-import { Activity, AlertTriangle, ArrowDown, ArrowRight, Boxes, Check, ChevronDown, CircleHelp, Crosshair, Database, Gauge, Radar, Search, Shield, SlidersHorizontal, Sparkles, Target, Zap } from "lucide-react"
+import { Activity, AlertTriangle, ArrowDown, ArrowRight, Boxes, Check, ChevronDown, CircleHelp, Crosshair, Database, Gauge, Heart, Radar, Scan, Search, Shield, SlidersHorizontal, Sparkles, Target, Timer, Wind, Zap } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { DatabaseBrowser } from "@/components/database-browser"
 import { InventorySection } from "@/components/inventory-section"
@@ -47,13 +47,23 @@ function StatCard({ label, value, unit, icon: Icon, quality, bar, subtitle }: { 
 
 function ResultPanel({ result, core, style }: { result: OptimizedBuild; core: PartEntry; style: PlayStyle }) {
   const { stats } = result
+  
+  // Nâng cấp mảng Rows thành 12 chỉ số chi tiết
   const rows = [
     { label: "Damage", value: stats.bodyDamage.toFixed(1), unit: "body", icon: Target, quality: "good" as const, percent: Math.min(100, stats.bodyDamage * 2.6), modifier: result.stats.modifiers.Damage },
     { label: "Fire rate", value: Math.round(stats.fireRate).toLocaleString("vi-VN"), unit: "RPM", icon: Zap, quality: "cyan" as const, percent: Math.min(100, stats.fireRate / 12), modifier: result.stats.modifiers.Fire_Rate },
-    { label: "Recoil", value: stats.recoil.toFixed(1), unit: "avg", icon: Activity, quality: "good" as const, percent: Math.max(6, 100 - stats.recoil / 2), modifier: result.stats.modifiers.Recoil, inverse: true },
+    { label: "Recoil (Aim)", value: stats.recoil.toFixed(1), unit: "avg", icon: Activity, quality: "good" as const, percent: Math.max(6, 100 - stats.recoil * 2), modifier: result.stats.modifiers.Recoil, inverse: true },
+    { label: "Recoil (Hip)", value: stats.recoilHipfire.toFixed(1), unit: "avg", icon: Activity, quality: "neutral" as const, percent: Math.max(6, 100 - stats.recoilHipfire * 2), modifier: result.stats.modifiers.Recoil_Hipfire, inverse: true },
     { label: "Magazine", value: Math.round(stats.magazine).toString(), unit: "rounds", icon: Boxes, quality: "neutral" as const, percent: Math.min(100, stats.magazine * 1.8), modifier: result.stats.modifiers.Magazine_Cap },
-    { label: "Aim time", value: `${stats.aimTime.toFixed(2)}s`, unit: "ADS", icon: Crosshair, quality: "cyan" as const, percent: Math.max(6, 100 - stats.aimTime * 95), modifier: result.stats.modifiers.Equip_Time, inverse: true },
+    { label: "Reload", value: `${stats.reloadTime.toFixed(1)}s`, unit: "sec", icon: Timer, quality: "cyan" as const, percent: Math.max(6, 100 - stats.reloadTime * 20), modifier: result.stats.modifiers.Reload_Time, inverse: true },
+    { label: "Aim time", value: `${stats.aimTime.toFixed(2)}s`, unit: "ADS", icon: Crosshair, quality: "cyan" as const, percent: Math.max(6, 100 - stats.aimTime * 95), modifier: result.stats.modifiers.Time_To_Aim, inverse: true },
+    { label: "Equip time", value: `${stats.equipTime.toFixed(2)}s`, unit: "sec", icon: Zap, quality: "neutral" as const, percent: Math.max(6, 100 - stats.equipTime * 95), modifier: result.stats.modifiers.Equip_Time, inverse: true },
+    { label: "Movement", value: `${stats.movementSpeed > 0 ? '+' : ''}${stats.movementSpeed.toFixed(1)}`, unit: "%", icon: Wind, quality: "good" as const, percent: Math.min(100, Math.max(5, 50 + stats.movementSpeed * 3)), modifier: result.stats.modifiers.Movement_Speed },
+    { label: "Health", value: `${stats.health > 0 ? '+' : ''}${stats.health.toFixed(1)}`, unit: "%", icon: Heart, quality: "good" as const, percent: Math.min(100, Math.max(5, 50 + stats.health * 3)), modifier: result.stats.modifiers.Health },
+    { label: "Max spread", value: `${stats.maxSpread.toFixed(1)}°`, unit: "deg", icon: Scan, quality: "neutral" as const, percent: Math.max(6, 100 - stats.maxSpread * 10), modifier: result.stats.modifiers.Max_Spread, inverse: true },
+    { label: "ADS spread", value: `${stats.adsMaxSpread.toFixed(2)}°`, unit: "deg", icon: Target, quality: "cyan" as const, percent: Math.max(6, 100 - stats.adsMaxSpread * 50), modifier: result.stats.modifiers.ADS_Spread, inverse: true },
   ]
+  
   const selectedParts = attachmentSlots.map((slot) => ({ slot, part: result.parts[slot] }))
 
   return (
@@ -88,13 +98,13 @@ function ResultPanel({ result, core, style }: { result: OptimizedBuild; core: Pa
         </div>
 
         <div>
-          <div className="mb-3 flex items-center justify-between"><h3 className="text-[10px] font-semibold tracking-[0.16em] text-slate-500">FINAL STATS</h3><span className="font-mono text-[9px] text-slate-600">MODIFIER + MULTIPLIER</span></div>
+          <div className="mb-3 flex items-center justify-between"><h3 className="text-[10px] font-semibold tracking-[0.16em] text-slate-500">FINAL STATS CHUYÊN SÂU</h3><span className="font-mono text-[9px] text-slate-600">MODIFIER + MULTIPLIER</span></div>
           <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-2">
             {rows.map(({ label, value, unit, icon, quality, percent, modifier, inverse }) => (
               <StatCard key={label} label={label} value={value} unit={unit} icon={icon} quality={quality} bar={percent} subtitle={`${typeof modifier === "number" && modifier >= 0 ? "+" : ""}${typeof modifier === "number" ? modifier.toFixed(1) : "0.0"}% modifier${inverse ? " · thấp hơn tốt hơn" : ""}`} />
             ))}
           </div>
-          <p className="mt-3 text-[10px] leading-5 text-slate-600">Chỉ số phụ kiện phần trăm được cộng gộp thành một hệ số nhân. Băng đạn dùng cỡ băng gốc và modifier Magazine Cap; thời gian ngắm dùng Equip Time.</p>
+          <p className="mt-3 text-[10px] leading-5 text-slate-600">Chỉ số phụ kiện phần trăm được cộng gộp thành hệ số. Movement & Health được tính cộng trực tiếp.</p>
         </div>
       </div>
     </section>
@@ -127,7 +137,6 @@ export function WeaponCalculator() {
 
   const selectedCores = useMemo(() => coreOptions.filter(c => selectedCoreIds.includes(c.id)), [coreOptions, selectedCoreIds])
   
-  // Kho phụ kiện toàn bộ xuyên phân loại súng
   const entriesBySlot = useMemo(
     () => Object.fromEntries(slots.map((slot) => [slot, allEntries[slot]])) as Record<Slot, PartEntry[]>,
     []
@@ -190,7 +199,6 @@ export function WeaponCalculator() {
     let bestOverallResult: OptimizedBuild | null = null
     let bestCore: PartEntry | null = null
 
-    // Quét toàn bộ các vũ khí được chọn với phụ kiện xuyên phân loại
     for (const coreId of selectedCoreIds) {
       const core = coreOptions.find(c => c.id === coreId)
       if (!core) continue
@@ -246,8 +254,8 @@ export function WeaponCalculator() {
         <section id="top" className="pt-8 sm:pt-10">
           <div className="flex flex-col gap-7 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-2xl">
-              <div className="flex items-center gap-2 font-mono text-[10px] tracking-[0.2em] text-emerald-400"><span className="size-1.5 rounded-full bg-emerald-400" /> MULTI-WEAPON OPTIMIZATION SYSTEM <span className="text-slate-700">/ 02.0</span></div>
-              <h1 className="mt-4 text-3xl font-semibold leading-tight tracking-[-0.04em] text-slate-100 sm:text-4xl">So sánh chéo vũ khí. <span className="text-slate-500">Tìm build mạnh nhất.</span></h1>
+              <div className="flex items-center gap-2 font-mono text-[10px] tracking-[0.2em] text-emerald-400"><span className="size-1.5 rounded-full bg-emerald-400" /> MULTI-WEAPON OPTIMIZATION SYSTEM <span className="text-slate-700">/ 03.0</span></div>
+              <h1 className="mt-4 text-3xl font-semibold leading-tight tracking-[-0.04em] text-slate-100 sm:text-4xl">Hệ thống phân tích sâu. <span className="text-slate-500">12 chỉ số cốt lõi.</span></h1>
               <p className="mt-3 max-w-xl text-sm leading-6 text-slate-500">Tối ưu hóa và quét tự động xuyên suốt nhiều loại vũ khí khác nhau dựa trên kho đồ và phong cách chơi của bạn.</p>
             </div>
             <div className="grid grid-cols-3 gap-2 sm:gap-3">

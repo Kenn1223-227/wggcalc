@@ -8,6 +8,22 @@ export type GamePart = {
   Category: string
   Price_Type?: string
   Firing_Mode?: string
+  Damage?: number | number[]
+  Dropoff_Studs?: number | number[]
+  Reload_Time?: number
+  Magazine_Size?: number
+  Fire_Rate?: number
+  Time_To_Aim?: number
+  Movement_Speed?: number
+  Health?: number
+  Equip_Time?: number
+  Max_Spread?: number
+  ADS_Spread?: number
+  Hipfire_Spread?: number
+  Recoil_Hipfire_Horizontal?: number[] | number
+  Recoil_Hipfire_Vertical?: number[] | number
+  Recoil_Aim_Horizontal?: number[] | number
+  Recoil_Aim_Vertical?: number[] | number
   [key: string]: unknown
 }
 

@@ -13,6 +13,12 @@ export type FinalStats = {
   range: number
   spread: number
   reloadTime: number
+  movementSpeed: number
+  health: number
+  equipTime: number
+  maxSpread: number
+  adsMaxSpread: number
+  recoilHipfire: number
   modifiers: Record<string, number>
 }
 
@@ -53,7 +59,8 @@ function getModifierTotals(parts: BuildParts) {
   Object.values(parts).forEach((part) => {
     if (!part) return
     Object.entries(part).forEach(([key, value]) => {
-      if (typeof value === "number" && !["Magazine_Size", "Reload_Time"].includes(key)) {
+      // Chỉ bỏ qua Magazine_Size, cho phép lấy toàn bộ modifier khác (Reload, Movement, Health...)
+      if (typeof value === "number" && !["Magazine_Size"].includes(key)) {
         totals[key] = (totals[key] || 0) + value
       }
     })
@@ -63,26 +70,43 @@ function getModifierTotals(parts: BuildParts) {
 
 export function calculateFinalStats(core: GamePart, parts: BuildParts): FinalStats {
   const totals = getModifierTotals(parts)
+  
   const damage = Array.isArray(core.Damage) ? core.Damage : [numeric(core.Damage, 0)]
+  const damageMultiplier = percentMultiplier(totals.Damage || 0)
+  
   const baseMagazine = gameData.Data.Magazines.find((item) => item.Name === core.Name && item.Category === core.Category)
   const selectedMagazine = parts.Magazines
-  const baseReload = numeric(baseMagazine?.Reload_Time, 2.4)
   const magazineSize = numeric(selectedMagazine?.Magazine_Size, numeric(baseMagazine?.Magazine_Size, 30))
+  
+  const baseReload = numeric(baseMagazine?.Reload_Time, numeric(core.Reload_Time, 3.2))
   const directReloadTime = numeric(selectedMagazine?.Reload_Time, baseReload)
-  const baseRecoil = (midpointMagnitude(core.Recoil_Aim_Vertical) + midpointMagnitude(core.Recoil_Aim_Horizontal)) / 2
+  
+  const baseRecoilAiming = (midpointMagnitude(core.Recoil_Aim_Vertical) + midpointMagnitude(core.Recoil_Aim_Horizontal)) / 2 || 5
+  const baseRecoilHipfire = (midpointMagnitude(core.Recoil_Hipfire_Vertical) + midpointMagnitude(core.Recoil_Hipfire_Horizontal)) / 2 || 10
+  
   const baseSpread = numeric(core.ADS_Spread, numeric(core.Hipfire_Spread, 1))
-  const damageMultiplier = percentMultiplier(totals.Damage || 0)
+  const baseMaxSpread = numeric(core.Max_Spread, 1.5)
+  const baseAdsMaxSpread = numeric(core.ADS_Spread, 0.4)
 
   return {
     bodyDamage: numeric(damage[0]) * damageMultiplier,
     headDamage: numeric(damage[1], numeric(damage[0])) * damageMultiplier,
     fireRate: numeric(core.Fire_Rate) * percentMultiplier(totals.Fire_Rate || 0),
-    recoil: baseRecoil * percentMultiplier(totals.Recoil || 0),
+    recoil: baseRecoilAiming * percentMultiplier(totals.Recoil || 0),
     magazine: Math.max(1, magazineSize * percentMultiplier(totals.Magazine_Cap || 0)),
     aimTime: Math.max(0.05, numeric(core.Time_To_Aim, 0.5) * percentMultiplier(totals.Equip_Time || 0)),
     range: numeric(Array.isArray(core.Dropoff_Studs) ? core.Dropoff_Studs[0] : 0) * percentMultiplier(totals.Range || 0),
     spread: Math.max(0.01, baseSpread * percentMultiplier(totals.Spread || 0)),
+    
+    // --- CÁC CHỈ SỐ MỚI THÊM VÀO ---
     reloadTime: Math.max(0.1, directReloadTime * percentMultiplier(-(totals.Reload_Speed || 0))),
+    movementSpeed: numeric(core.Movement_Speed, 0) + numeric(totals.Movement_Speed, 0), // Cộng dồn phần trăm trực tiếp (+11.5%)
+    health: numeric(core.Health, 0) + numeric(totals.Health, 0), // Cộng dồn trực tiếp (-6.5%)
+    equipTime: Math.max(0.05, numeric(core.Equip_Time, 0.5) * percentMultiplier(totals.Equip_Time || 0)),
+    maxSpread: Math.max(0.01, baseMaxSpread * percentMultiplier(totals.Max_Spread || 0)),
+    adsMaxSpread: Math.max(0.01, baseAdsMaxSpread * percentMultiplier(totals.ADS_Spread || 0)),
+    recoilHipfire: baseRecoilHipfire * percentMultiplier(totals.Recoil_Hipfire || 0),
+    
     modifiers: totals,
   }
 }
