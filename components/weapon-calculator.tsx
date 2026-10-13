@@ -117,9 +117,7 @@ export function WeaponCalculator() {
   const [activeTab, setActiveTab] = useState<TabId>("calculator")
   const coreOptions = useMemo(() => allEntries.Cores, [])
   
-  // Cho phép chọn nhiều vũ khí (Mặc định chọn toàn bộ danh sách cores để quét xuyên suốt các loại)
   const [selectedCoreIds, setSelectedCoreIds] = useState<string[]>(() => coreOptions.map(c => c.id))
-  
   const [style, setStyle] = useState<PlayStyle>("auto")
   const [inventory, setInventory] = useState(getInventoryDefaults)
   const [search, setSearch] = useState("")
@@ -127,14 +125,14 @@ export function WeaponCalculator() {
   const [winningCore, setWinningCore] = useState<PartEntry | null>(null)
   const [error, setError] = useState("")
 
-  // Lấy danh sách core đang được chọn thực tế
   const selectedCores = useMemo(() => coreOptions.filter(c => selectedCoreIds.includes(c.id)), [coreOptions, selectedCoreIds])
   
-  // Dùng category của core đầu tiên được chọn làm gốc cho kho phụ kiện hiển thị giao diện bên dưới
+  // Kho phụ kiện toàn bộ xuyên phân loại súng
   const entriesBySlot = useMemo(
-  () => Object.fromEntries(slots.map((slot) => [slot, allEntries[slot]])) as Record<Slot, PartEntry[]>,
-  []
-)
+    () => Object.fromEntries(slots.map((slot) => [slot, allEntries[slot]])) as Record<Slot, PartEntry[]>,
+    []
+  )
+
   const available = useMemo(() => Object.fromEntries(attachmentSlots.map((slot) => [slot, entriesBySlot[slot].filter(({ id }) => inventory[slot].has(id))])) as Record<AttachmentSlot, PartEntry[]>, [entriesBySlot, inventory])
   const ownedCount = attachmentSlots.reduce((total, slot) => total + available[slot].length, 0)
   const canCalculate = selectedCoreIds.length > 0 && attachmentSlots.every((slot) => available[slot].length > 0)
@@ -192,29 +190,22 @@ export function WeaponCalculator() {
     let bestOverallResult: OptimizedBuild | null = null
     let bestCore: PartEntry | null = null
 
-    // Quét toàn bộ các vũ khí được chọn (bất kể loại AR, SMG, Sniper...) để tìm ra build tối ưu nhất
-   for (const coreId of selectedCoreIds) {
-  const core = coreOptions.find(c => c.id === coreId)
-  if (!core) continue
+    // Quét toàn bộ các vũ khí được chọn với phụ kiện xuyên phân loại
+    for (const coreId of selectedCoreIds) {
+      const core = coreOptions.find(c => c.id === coreId)
+      if (!core) continue
 
-  // Lấy trực tiếp phụ kiện từ kho tổng hợp toàn cục (allEntries) xuyên suốt mọi loại súng
-  const availForCore = Object.fromEntries(
-    attachmentSlots.map(slot => [
-      slot,
-      allEntries[slot].filter(({ id }) => inventory[slot].has(id))
-    ])
-  ) as Record<AttachmentSlot, PartEntry[]>
+      const availForCore = Object.fromEntries(
+        attachmentSlots.map(slot => [
+          slot,
+          allEntries[slot].filter(({ id }) => inventory[slot].has(id))
+        ])
+      ) as Record<AttachmentSlot, PartEntry[]>
 
-  const isValid = attachmentSlots.every(slot => availForCore[slot].length > 0)
-  if (!isValid) continue
+      const isValid = attachmentSlots.every(slot => availForCore[slot].length > 0)
+      if (!isValid) continue
 
-  const currentResult = optimizeBuild(core.item, availForCore, style)
-
-  if (!bestOverallResult || currentResult.score > bestOverallResult.score) {
-    bestOverallResult = currentResult
-    bestCore = core
-  }
-}
+      const currentResult = optimizeBuild(core.item, availForCore, style)
 
       if (!bestOverallResult || currentResult.score > bestOverallResult.score) {
         bestOverallResult = currentResult
@@ -281,7 +272,6 @@ export function WeaponCalculator() {
                 <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
                   <div className="flex min-w-0 flex-1 flex-col gap-4 sm:flex-row">
                     
-                    {/* Ô chọn nhiều vũ khí (Multi-select) vượt ranh giới loại súng */}
                     <label className="flex min-w-0 flex-1 flex-col gap-2">
                       <div className="flex items-center justify-between">
                         <span className="font-mono text-[10px] font-medium tracking-[0.14em] text-slate-500">01 / CHỌN VŨ KHÍ (CÓ THỂ CHỌN NHIỀU)</span>
