@@ -48,7 +48,6 @@ function StatCard({ label, value, unit, icon: Icon, quality, bar, subtitle }: { 
 function ResultPanel({ result, core, style }: { result: OptimizedBuild; core: PartEntry; style: PlayStyle }) {
   const { stats } = result
   
-  // Nâng cấp mảng Rows thành 12 chỉ số chi tiết
   const rows = [
     { label: "Damage", value: stats.bodyDamage.toFixed(1), unit: "body", icon: Target, quality: "good" as const, percent: Math.min(100, stats.bodyDamage * 2.6), modifier: result.stats.modifiers.Damage },
     { label: "Fire rate", value: Math.round(stats.fireRate).toLocaleString("vi-VN"), unit: "RPM", icon: Zap, quality: "cyan" as const, percent: Math.min(100, stats.fireRate / 12), modifier: result.stats.modifiers.Fire_Rate },
@@ -130,6 +129,37 @@ export function WeaponCalculator() {
   const [selectedCoreIds, setSelectedCoreIds] = useState<string[]>(() => coreOptions.map(c => c.id))
   const [style, setStyle] = useState<PlayStyle>("auto")
   const [inventory, setInventory] = useState(getInventoryDefaults)
+
+  // 1. Tự động tải kho đồ đã lưu từ bộ nhớ trình duyệt khi người dùng quay lại web
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("wggcalc-inventory")
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        // Chuyển đổi Array thành Set để code xử lý được
+        const restored = Object.fromEntries(
+          Object.entries(parsed).map(([key, array]) => [key, new Set(array as string[])])
+        ) as Record<Slot, Set<string>>
+        setInventory(restored)
+      }
+    } catch (error) {
+      console.error("Lỗi khi tải kho đồ:", error)
+    }
+  }, [])
+
+  // 2. Tự động lưu kho đồ vào trình duyệt mỗi khi người dùng thay đổi lựa chọn
+  useEffect(() => {
+    try {
+      // Chuyển đổi Set thành Array để lưu thành chuỗi JSON
+      const serializable = Object.fromEntries(
+        Object.entries(inventory).map(([key, set]) => [key, Array.from(set as Set<string>)])
+      )
+      localStorage.setItem("wggcalc-inventory", JSON.stringify(serializable))
+    } catch (error) {
+      console.error("Lỗi khi lưu kho đồ:", error)
+    }
+  }, [inventory])
+
   const [search, setSearch] = useState("")
   const [result, setResult] = useState<OptimizedBuild | null>(null)
   const [winningCore, setWinningCore] = useState<PartEntry | null>(null)
