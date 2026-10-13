@@ -54,14 +54,37 @@ function percentMultiplier(percent: number): number {
   return Math.max(0.05, 1 + percent / 100)
 }
 
-function getModifierTotals(parts: BuildParts) {
+// Bảng tỷ lệ phạt khi dùng chéo phụ kiện
+const categoryPenalties: Record<string, Record<string, number>> = {
+  "AR": { "AR": 0, "Sniper": 0.30, "SMG": 0.21, "Shotgun": 0.25, "LMG": 0.25, "BR": 0.20, "Sidearm": 0.35 },
+  "Sniper": { "AR": 0.30, "Sniper": 0, "SMG": 0.40, "Shotgun": 0.40, "LMG": 0.20, "BR": 0.20, "Sidearm": 0.50 },
+  "SMG": { "AR": 0.20, "Sniper": 0.40, "SMG": 0, "Shotgun": 0.35, "LMG": 0.35, "BR": 0.30, "Sidearm": 0.30 },
+  "Shotgun": { "AR": 0.30, "Sniper": 0.50, "SMG": 0.35, "Shotgun": 0, "LMG": 0.25, "BR": 0.40, "Sidearm": 0.30 },
+  "LMG": { "AR": 0.25, "Sniper": 0.20, "SMG": 0.35, "Shotgun": 0.25, "LMG": 0, "BR": 0.15, "Sidearm": 0.50 },
+  "BR": { "AR": 0.20, "Sniper": 0.15, "SMG": 0.30, "Shotgun": 0.40, "LMG": 0.15, "BR": 0, "Sidearm": 0.35 },
+  "Sidearm": { "AR": 0.35, "Sniper": 0.50, "SMG": 0.25, "Shotgun": 0.35, "LMG": 0.50, "BR": 0.35, "Sidearm": 0 },
+  "Weird": { "AR": 0, "Sniper": 0, "SMG": 0, "Shotgun": 0, "LMG": 0, "BR": 0, "Sidearm": 0, "Weird": 0 }
+};
+
+// Hàm tổng hợp modifier xử lý phạt chéo và tự động nhận diện Key lỗi trong JSON
+function getModifierTotals(core: GamePart, parts: BuildParts) {
   const totals: Record<string, number> = {}
+  const coreCat = core.Category
+
   Object.values(parts).forEach((part) => {
     if (!part) return
+    const partCat = part.Category
+    
+    let penalty = 0
+    if (partCat !== "Weird" && coreCat !== "Weird" && categoryPenalties[coreCat] && categoryPenalties[coreCat][partCat] !== undefined) {
+      penalty = categoryPenalties[coreCat][partCat]
+    }
+
     Object.entries(part).forEach(([key, value]) => {
-      // Chỉ bỏ qua Magazine_Size, cho phép lấy toàn bộ modifier khác (Reload, Movement, Health...)
-      if (typeof value === "number" && !["Magazine_Size"].includes(key)) {
-        totals[key] = (totals[key] || 0) + value
+      // Bỏ qua các chỉ số gốc tĩnh, chỉ tính Modifier phần trăm
+      if (typeof value === "number" && !["Magazine_Size", "Pellets", "Burst"].includes(key)) {
+        const actualValue = value * (1 - penalty)
+        totals[key] = (totals[key] || 0) + actualValue
       }
     })
   })
@@ -69,7 +92,7 @@ function getModifierTotals(parts: BuildParts) {
 }
 
 export function calculateFinalStats(core: GamePart, parts: BuildParts): FinalStats {
-  const totals = getModifierTotals(parts)
+  const totals = getModifierTotals(core, parts)
   
   const damage = Array.isArray(core.Damage) ? core.Damage : [numeric(core.Damage, 0)]
   const damageMultiplier = percentMultiplier(totals.Damage || 0)
@@ -82,10 +105,12 @@ export function calculateFinalStats(core: GamePart, parts: BuildParts): FinalSta
   const directReloadTime = numeric(selectedMagazine?.Reload_Time, baseReload)
   
   const baseRecoilAiming = (midpointMagnitude(core.Recoil_Aim_Vertical) + midpointMagnitude(core.Recoil_Aim_Horizontal)) / 2 || 5
-  const baseRecoilHipfire = (midpointMagnitude(core.Recoil_Hipfire_Vertical) + midpointMagnitude(core.Recoil_Hipfire_Horizontal)) / 2 || 10
   
-  const baseSpread = numeric(core.ADS_Spread, numeric(core.Hipfire_Spread, 1))
-  const baseMaxSpread = numeric(core.Max_Spread, 1.5)
+  // Tự động fallback đọc biến Recoil_Hip_Vertical cũ trong JSON
+  const baseRecoilHipfire = (midpointMagnitude(core.Recoil_Hip_Vertical || core.Recoil_Hipfire_Vertical) + midpointMagnitude(core.Recoil_Hip_Horizontal || core.Recoil_Hipfire_Horizontal)) / 2 || 10
+  
+  // Tự động fallback đọc biến Hipfire_Spread cũ
+  const baseMaxSpread = numeric(core.Max_Spread, numeric(core.Hipfire_Spread, 1.5))
   const baseAdsMaxSpread = numeric(core.ADS_Spread, 0.4)
 
   return {
@@ -94,18 +119,22 @@ export function calculateFinalStats(core: GamePart, parts: BuildParts): FinalSta
     fireRate: numeric(core.Fire_Rate) * percentMultiplier(totals.Fire_Rate || 0),
     recoil: baseRecoilAiming * percentMultiplier(totals.Recoil || 0),
     magazine: Math.max(1, magazineSize * percentMultiplier(totals.Magazine_Cap || 0)),
-    aimTime: Math.max(0.05, numeric(core.Time_To_Aim, 0.5) * percentMultiplier(totals.Equip_Time || 0)),
+    aimTime: Math.max(0.05, numeric(core.Time_To_Aim, 0.5) * percentMultiplier(totals.Time_To_Aim || 0)),
     range: numeric(Array.isArray(core.Dropoff_Studs) ? core.Dropoff_Studs[0] : 0) * percentMultiplier(totals.Range || 0),
-    spread: Math.max(0.01, baseSpread * percentMultiplier(totals.Spread || 0)),
+    spread: Math.max(0.01, baseMaxSpread * percentMultiplier(totals.Spread || totals.Max_Spread || 0)),
     
-    // --- CÁC CHỈ SỐ MỚI THÊM VÀO ---
+    // Đọc bù trừ thông số mới:
     reloadTime: Math.max(0.1, directReloadTime * percentMultiplier(-(totals.Reload_Speed || 0))),
-    movementSpeed: numeric(core.Movement_Speed, 0) + numeric(totals.Movement_Speed, 0), // Cộng dồn phần trăm trực tiếp (+11.5%)
-    health: numeric(core.Health, 0) + numeric(totals.Health, 0), // Cộng dồn trực tiếp (-6.5%)
+    
+    // Tự động gom Movement_Speed_Modifier (cũ) và Movement_Speed lại với nhau
+    movementSpeed: numeric(core.Movement_Speed, numeric(core.Movement_Speed_Modifier, 0)) + numeric(totals.Movement_Speed, 0),
+    health: numeric(core.Health, 0) + numeric(totals.Health, 0),
     equipTime: Math.max(0.05, numeric(core.Equip_Time, 0.5) * percentMultiplier(totals.Equip_Time || 0)),
-    maxSpread: Math.max(0.01, baseMaxSpread * percentMultiplier(totals.Max_Spread || 0)),
-    adsMaxSpread: Math.max(0.01, baseAdsMaxSpread * percentMultiplier(totals.ADS_Spread || 0)),
-    recoilHipfire: baseRecoilHipfire * percentMultiplier(totals.Recoil_Hipfire || 0),
+    
+    // Khớp lệnh Spread dùng chung cho cả Max Spread và ADS Spread nếu phụ kiện chỉ ghi "Spread"
+    maxSpread: Math.max(0.01, baseMaxSpread * percentMultiplier(totals.Max_Spread || totals.Spread || 0)),
+    adsMaxSpread: Math.max(0.01, baseAdsMaxSpread * percentMultiplier(totals.ADS_Spread || totals.Spread || 0)),
+    recoilHipfire: baseRecoilHipfire * percentMultiplier(totals.Recoil_Hipfire || totals.Recoil || 0),
     
     modifiers: totals,
   }
